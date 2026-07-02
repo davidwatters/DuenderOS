@@ -1,4 +1,4 @@
-# DuenderOS PlatformIO v0.4.0
+# DuenderOS PlatformIO v0.4
 
 Major cleanup build.
 
