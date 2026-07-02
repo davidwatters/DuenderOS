@@ -3,6 +3,7 @@
 #include <U8g2lib.h>
 #include "printer_state.h"
 #include "encoder.h"
+#include "network_manager.h"
 
 class DuenderUI {
 public:
@@ -17,7 +18,7 @@ private:
   PrinterState* ps = nullptr;
 
   enum MenuId : uint8_t { MENU_MAIN, MENU_PRINT, MENU_MOTION, MENU_TEMPS, MENU_MACROS, MENU_FILES, MENU_SYSTEM, MENU_CONTROLS, MENU_SETTINGS, MENU_NETWORK };
-  enum PageId : uint8_t { PAGE_MENU, PAGE_STATUS, PAGE_PRINT_STATUS, PAGE_MOTION, PAGE_TEMPS, PAGE_SYSTEM, PAGE_IP_EDIT };
+  enum PageId : uint8_t { PAGE_MENU, PAGE_STATUS, PAGE_PRINT_STATUS, PAGE_MOTION, PAGE_TEMPS, PAGE_SYSTEM, PAGE_IP_EDIT, PAGE_PRINTER_SELECT };
 
   PageId page = PAGE_STATUS;
   MenuId menu = MENU_MAIN;
@@ -32,6 +33,11 @@ private:
   uint8_t ipEdit[4] = {10, 0, 0, 154};
   uint8_t ipCursor = 0;
 
+  FoundPrinter foundPrinters[DUENDER_MAX_PRINTERS];
+  int foundPrinterCount = 0;
+  int foundPrinterSelected = 0;
+  int foundPrinterTop = 0;
+
   void drawHeader(const char* title);
   void drawFooter(const char* hint = nullptr);
   void drawMenu();
@@ -41,6 +47,9 @@ private:
   void drawTemps();
   void drawSystem();
   void drawIpEditor();
+  void drawPrinterSelect();
+  void scanForPrintersPage();
+  void selectFoundPrinter();
   void drawProgress(int x, int y, int w, int h, int pct);
   void drawValueRow(int y, const char* left, const String& right);
 

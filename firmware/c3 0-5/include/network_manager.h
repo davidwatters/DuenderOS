@@ -2,6 +2,14 @@
 #include <Arduino.h>
 #include <IPAddress.h>
 
+#define DUENDER_MAX_PRINTERS 10
+
+struct FoundPrinter {
+  String name;
+  String host;
+  uint16_t port;
+};
+
 class NetworkManagerDuender {
 public:
   void begin();
@@ -15,6 +23,8 @@ public:
 
   bool testMoonraker(const String& host, uint16_t port = 7125, uint16_t timeoutMs = 650);
   bool autoScanMoonraker();
+  int scanPrinters(FoundPrinter* out, int maxCount);
+  bool getMoonrakerInfo(const String& host, FoundPrinter& out, uint16_t port = 7125, uint16_t timeoutMs = 700);
 
   void startConfigPortal();
   void resetWiFiAndSettings();

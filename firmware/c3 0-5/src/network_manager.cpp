@@ -5,6 +5,7 @@
 #include <HTTPClient.h>
 #include <Preferences.h>
 #include <WiFiManager.h>
+#include <ArduinoJson.h>
 
 NetworkManagerDuender Network;
 static Preferences prefs;
@@ -119,6 +120,82 @@ bool NetworkManagerDuender::testMoonraker(const String& host, uint16_t port, uin
   return false;
 }
 
+
+bool NetworkManagerDuender::getMoonrakerInfo(const String& host, FoundPrinter& out, uint16_t port, uint16_t timeoutMs) {
+  if (!isWifiConnected()) return false;
+
+  HTTPClient http;
+  String url = String("http://") + host + ":" + String(port) + "/printer/info";
+  http.setTimeout(timeoutMs);
+  http.begin(url);
+  int code = http.GET();
+  if (code != 200) {
+    http.end();
+    return false;
+  }
+
+  String payload = http.getString();
+  http.end();
+
+  JsonDocument doc;
+  DeserializationError err = deserializeJson(doc, payload);
+  if (err) return false;
+
+  // Moonraker /printer/info generally returns result.state, result.state_message, hostname, software_version.
+  JsonVariant result = doc["result"];
+  if (result.isNull()) return false;
+
+  String name = String((const char*)(result["hostname"] | ""));
+  if (name.length() == 0) name = String((const char*)(result["klipper_path"] | ""));
+  if (name.length() == 0) name = host;
+  name.replace("/home/", "");
+  name.replace("/klipper", "");
+  if (name.length() > 18) name = name.substring(0, 18);
+
+  out.name = name;
+  out.host = host;
+  out.port = port;
+  return true;
+}
+
+int NetworkManagerDuender::scanPrinters(FoundPrinter* out, int maxCount) {
+  if (!isWifiConnected() || !out || maxCount <= 0) return 0;
+
+  int found = 0;
+  auto tryHost = [&](const String& host, uint16_t timeoutMs) {
+    if (found >= maxCount) return;
+    for (int i = 0; i < found; i++) {
+      if (out[i].host == host) return;
+    }
+    FoundPrinter fp;
+    if (getMoonrakerInfo(host, fp, DEFAULT_MOONRAKER_PORT, timeoutMs)) {
+      out[found++] = fp;
+    }
+  };
+
+  // Saved/default first so known printers appear at the top.
+  tryHost(moonHost, 650);
+  if (String(DEFAULT_MOONRAKER_HOST) != moonHost) tryHost(DEFAULT_MOONRAKER_HOST, 450);
+
+  IPAddress ip = WiFi.localIP();
+  uint8_t a = ip[0], b = ip[1], c = ip[2];
+
+  const uint8_t quick[] = {2, 3, 4, 5, 10, 20, 50, 80, 81, 82, 83, 90, 91, 92, 100, 101, 150, 154, 200, 201, 220, 250};
+  for (uint8_t i = 0; i < sizeof(quick) && found < maxCount; i++) {
+    String host = String(a) + "." + String(b) + "." + String(c) + "." + String(quick[i]);
+    tryHost(host, 190);
+  }
+
+  // Full /24 scan. Keep each timeout low so the UI doesn't hang forever.
+  for (int last = 1; last <= 254 && found < maxCount; last++) {
+    if (last == ip[3]) continue;
+    String host = String(a) + "." + String(b) + "." + String(c) + "." + String(last);
+    tryHost(host, 80);
+  }
+
+  return found;
+}
+
 bool NetworkManagerDuender::autoScanMoonraker() {
   if (!isWifiConnected()) return false;
 
@@ -133,7 +210,8 @@ bool NetworkManagerDuender::autoScanMoonraker() {
   for (uint8_t i = 0; i < sizeof(quick); i++) {
     String host = String(a) + "." + String(b) + "." + String(c) + "." + String(quick[i]);
     if (host == moonHost) continue;
-    if (testMoonraker(host, DEFAULT_MOONRAKER_PORT, 180)) {
+    FoundPrinter fp;
+    if (getMoonrakerInfo(host, fp, DEFAULT_MOONRAKER_PORT, 220)) {
       moonHost = host;
       moonPort = DEFAULT_MOONRAKER_PORT;
       saveSettings();
@@ -145,7 +223,8 @@ bool NetworkManagerDuender::autoScanMoonraker() {
   for (int last = 1; last <= 254; last++) {
     if (last == ip[3]) continue;
     String host = String(a) + "." + String(b) + "." + String(c) + "." + String(last);
-    if (testMoonraker(host, DEFAULT_MOONRAKER_PORT, 90)) {
+    FoundPrinter fp;
+    if (getMoonrakerInfo(host, fp, DEFAULT_MOONRAKER_PORT, 110)) {
       moonHost = host;
       moonPort = DEFAULT_MOONRAKER_PORT;
       saveSettings();

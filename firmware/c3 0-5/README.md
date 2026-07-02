@@ -1,13 +1,15 @@
-# DuenderOS v0.5.0
+# DuenderOS v0.5.1
 
 ESP32-C3 + Creality 12864 ST7920 Moonraker/Klipper interface.
 
-## New in v0.5.0
+## New in v0.5.1
 
 - First-boot captive portal Wi-Fi setup
 - Optional Moonraker IP entry from captive portal
 - Saved Moonraker IP/port using ESP32 Preferences flash storage
 - Moonraker auto-scan on local subnet
+- Find all Moonraker/Klipper printers on the subnet
+- Select/save a discovered printer from the encoder menu
 - Encoder-editable Moonraker IP page
 - Network menu
 - Serial commands for scan/portal/reset
@@ -40,6 +42,7 @@ BEEP    -> GPIO2 optional
 Settings > Network contains:
 
 - Moonraker IP
+- Find Printers
 - Auto Scan
 - WiFi Portal
 - Reset WiFi
@@ -58,6 +61,7 @@ Long press = save/back
 ```txt
 HELP
 SCAN
+LIST
 PORTAL
 RESETWIFI
 HOME

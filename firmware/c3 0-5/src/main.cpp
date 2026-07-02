@@ -28,7 +28,7 @@ void handleSerialCommand(String cmd) {
   upper.toUpperCase();
 
   if (upper == "HELP") {
-    Serial.println("Commands: HELP NEXT SCAN PORTAL RESETWIFI HOME PAUSE RESUME CANCEL COOL PLA BELT MESH REPRINT GCODE <cmd>");
+    Serial.println("Commands: HELP NEXT SCAN LIST PORTAL RESETWIFI HOME PAUSE RESUME CANCEL COOL PLA BELT MESH REPRINT GCODE <cmd>");
   } else if (upper == "NEXT") UI.handleEncoder(1);
   else if (upper == "SCAN") {
     Serial.println("Scanning for Moonraker...");

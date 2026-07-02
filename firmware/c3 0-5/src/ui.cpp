@@ -16,7 +16,7 @@ static const char* FILE_ITEMS[] = {"Reprint Current", "Calibration", "Parts", "D
 static const char* SYSTEM_ITEMS[] = {"System Status", "Restart Klipper", "Restart Firmware", "Restart Moonraker", "Emergency Stop", "Back"};
 static const char* CONTROL_ITEMS[] = {"Home All", "Pause", "Resume", "Cancel", "Cooldown", "Preheat PLA", "Back"};
 static const char* SETTING_ITEMS[] = {"Network", "Moonraker IP", "Auto Scan", "WiFi Portal", "Reset WiFi", "Status Page", "Beeper Test", "About", "Back"};
-static const char* NETWORK_ITEMS[] = {"Moonraker IP", "Auto Scan", "WiFi Portal", "Reset WiFi", "Back"};
+static const char* NETWORK_ITEMS[] = {"Find Printers", "Moonraker IP", "Auto Scan", "WiFi Portal", "Reset WiFi", "Back"};
 
 void DuenderUI::begin(U8G2_ST7920_128X64_F_SW_SPI* display, PrinterState* state) {
   u = display;
@@ -52,6 +52,7 @@ void DuenderUI::update() {
     case PAGE_TEMPS: drawTemps(); break;
     case PAGE_SYSTEM: drawSystem(); break;
     case PAGE_IP_EDIT: drawIpEditor(); break;
+    case PAGE_PRINTER_SELECT: drawPrinterSelect(); break;
   }
 }
 
@@ -62,6 +63,15 @@ void DuenderUI::handleEncoder(int delta) {
     if (v < 0) v = 255;
     if (v > 255) v = 0;
     ipEdit[ipCursor] = (uint8_t)v;
+    return;
+  }
+  if (page == PAGE_PRINTER_SELECT) {
+    if (foundPrinterCount <= 0) return;
+    foundPrinterSelected += delta;
+    if (foundPrinterSelected < 0) foundPrinterSelected = foundPrinterCount - 1;
+    if (foundPrinterSelected >= foundPrinterCount) foundPrinterSelected = 0;
+    if (foundPrinterSelected < foundPrinterTop) foundPrinterTop = foundPrinterSelected;
+    if (foundPrinterSelected > foundPrinterTop + 2) foundPrinterTop = foundPrinterSelected - 2;
     return;
   }
   if (page != PAGE_MENU) {
@@ -99,6 +109,12 @@ void DuenderUI::handleButton(ButtonEvent ev) {
     } else if (ev == BTN_LONG) {
       saveIpEditor();
     }
+    return;
+  }
+
+  if (page == PAGE_PRINTER_SELECT) {
+    if (ev == BTN_SHORT) selectFoundPrinter();
+    else if (ev == BTN_LONG) { page = PAGE_MENU; setNotice("Back"); }
     return;
   }
 
@@ -199,6 +215,7 @@ void DuenderUI::selectCurrent() {
   if (item == "Temp Status") { page = PAGE_TEMPS; return; }
   if (item == "System Status" || item == "About") { page = PAGE_SYSTEM; return; }
   if (item == "Network") { enterMenu(MENU_NETWORK); return; }
+  if (item == "Find Printers") { scanForPrintersPage(); return; }
   if (item == "Moonraker IP") { loadIpEditor(); page = PAGE_IP_EDIT; return; }
 
   executeAction(item);
@@ -428,6 +445,73 @@ void DuenderUI::drawIpEditor() {
   int x = ipCursor * 28 + 7;
   u->drawHLine(x, 45, 14);
   drawFooter("Turn=Edit Press=Next");
+  u->sendBuffer();
+}
+
+
+void DuenderUI::scanForPrintersPage() {
+  u->clearBuffer();
+  drawHeader("SCAN");
+  u->setFont(u8g2_font_6x12_tr);
+  u->drawStr(0, 26, "Scanning network...");
+  u->drawStr(0, 40, "This can take a bit");
+  drawProgress(0, 48, 128, 5, 25);
+  u->sendBuffer();
+
+  foundPrinterCount = Network.scanPrinters(foundPrinters, DUENDER_MAX_PRINTERS);
+  foundPrinterSelected = 0;
+  foundPrinterTop = 0;
+  page = PAGE_PRINTER_SELECT;
+  setNotice(foundPrinterCount ? String("Found ") + String(foundPrinterCount) : "None found");
+}
+
+void DuenderUI::selectFoundPrinter() {
+  if (foundPrinterCount <= 0) {
+    page = PAGE_MENU;
+    return;
+  }
+  FoundPrinter& fp = foundPrinters[foundPrinterSelected];
+  Network.setMoonrakerHost(fp.host);
+  Network.setMoonrakerPort(fp.port);
+  setNotice(String("Saved ") + fp.host);
+  page = PAGE_STATUS;
+}
+
+void DuenderUI::drawPrinterSelect() {
+  u->clearBuffer();
+  drawHeader("PRINTERS");
+  u->setFont(u8g2_font_6x12_tr);
+
+  if (foundPrinterCount <= 0) {
+    u->drawStr(0, 28, "No printers found");
+    u->drawStr(0, 42, "Hold = back");
+    drawFooter("Try manual IP");
+    u->sendBuffer();
+    return;
+  }
+
+  for (int row = 0; row < 3; row++) {
+    int idx = foundPrinterTop + row;
+    if (idx >= foundPrinterCount) break;
+    int y = 24 + row * 14;
+    String label = foundPrinters[idx].name;
+    if (label == foundPrinters[idx].host) label = foundPrinters[idx].host;
+    else label = label + " " + foundPrinters[idx].host.substring(foundPrinters[idx].host.lastIndexOf('.') + 1);
+
+    if (idx == foundPrinterSelected) {
+      u->drawBox(0, y - 11, 128, 13);
+      u->setDrawColor(0);
+      u->drawStr(2, y, ">");
+      u->drawStr(14, y, clip(label, 18).c_str());
+      u->setDrawColor(1);
+    } else {
+      u->drawStr(14, y, clip(label, 18).c_str());
+    }
+  }
+
+  char buf[28];
+  snprintf(buf, sizeof(buf), "%d/%d OK=Save", foundPrinterSelected + 1, foundPrinterCount);
+  drawFooter(buf);
   u->sendBuffer();
 }
 
